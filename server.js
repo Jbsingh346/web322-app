@@ -51,11 +51,10 @@ app.use(express.static('public'));
 
 app.use(function(req,res,next){
     let route = req.path.substring(1);
-    app.locals.activeRoute = "/" + (isNaN(route.split('/')[1]) ? route.replace(/\/(?!.*)/, "") : route.replace(/\/(.*)/, ""));
+    app.locals.activeRoute = (route == "/") ? "/" : "/" + route.replace(/\/(.*)/, "");
     app.locals.viewingCategory = req.query.category;
     next();
 });
-
 
 
 app.get('/', (req, res) => {
