@@ -12,15 +12,17 @@
 *
 ********************************************************************************/
 const express = require('express');
-const path = require('path');
-const service = require('./blog-service');
-let exphbs = require('express-handlebars');
+const blogData = require("./blog-service");
+const multer = require("multer");
+const cloudinary = require('cloudinary').v2;
+const streamifier = require('streamifier');
+const exphbs = require("express-handlebars");
+const path = require("path");
 const stripJs = require('strip-js');
 
-const multer = require("multer");
-const cloudinary = require('cloudinary').v2
-const streamifier = require('streamifier')
-
+const app = express();
+ 
+const HTTP_PORT = process.env.PORT || 8080;
 cloudinary.config({
     cloud_name: 'dwqnjaqjn',
     api_key: '551834117631475',
@@ -28,13 +30,10 @@ cloudinary.config({
     secure: true
 });
 
-const upload = multer(); // no { storage: storage } since we are not using disk storage
+const upload = multer();
 
-
-const app = express();
-
-app.engine('.hbs', exphbs.engine({
-    extname: '.hbs', 
+app.engine(".hbs", exphbs.engine({
+    extname: ".hbs",
     helpers: {
         navLink: function(url, options){
             return '<li' + 
@@ -52,14 +51,19 @@ app.engine('.hbs', exphbs.engine({
         },
         safeHTML: function(context){
             return stripJs(context);
+        },
+        formatDate: function(dateObj){
+            let year = dateObj.getFullYear();
+            let month = (dateObj.getMonth() + 1).toString();
+            let day = dateObj.getDate().toString();
+            return `${year}-${month.padStart(2, '0')}-${day.padStart(2,'0')}`;
         }
+        
     }
 }));
+
 app.set('view engine', '.hbs');
-
-
-const port = process.env.port || 8080;
-
+app.use(express.urlencoded({extended: true}));
 app.use(express.static('public'));
 
 app.use(function(req,res,next){
@@ -69,22 +73,13 @@ app.use(function(req,res,next){
     next();
 });
 
-
 app.get('/', (req, res) => {
-    res.redirect('/blog');
-})
+    res.redirect("/blog");
+});
 
 app.get('/about', (req, res) => {
-    res.render('about');
-})
-
-
-
-// app.get('/blog', (req, res) => {
-//     service.getPublishedPosts().then(data => res.json(data)).catch(err => res.json(err));
-// })
-
-
+    res.render("about");
+});
 
 app.get('/blog', async (req, res) => {
 
@@ -99,10 +94,10 @@ app.get('/blog', async (req, res) => {
         // if there's a "category" query, filter the returned posts by category
         if(req.query.category){
             // Obtain the published "posts" by category
-            posts = await service.getPublishedPostsByCategory(req.query.category);
+            posts = await blogData.getPublishedPostsByCategory(req.query.category);
         }else{
             // Obtain the published "posts"
-            posts = await service.getPublishedPosts();
+            posts = await blogData.getPublishedPosts();
         }
 
         // sort the published posts by postDate
@@ -121,7 +116,7 @@ app.get('/blog', async (req, res) => {
 
     try{
         // Obtain the full list of "categories"
-        let categories = await service.getCategories();
+        let categories = await blogData.getCategories();
 
         // store the "categories" data in the viewData object (to be passed to the view)
         viewData.categories = categories;
@@ -132,6 +127,57 @@ app.get('/blog', async (req, res) => {
     // render the "blog" view with all of the data (viewData)
     res.render("blog", {data: viewData})
 
+});
+
+app.get('/posts', (req, res) => {
+    
+
+    let queryPromise = null;
+
+    if (req.query.category) {
+        queryPromise = blogData.getPostsByCategory(req.query.category);
+    } else if (req.query.minDate) {
+        queryPromise = blogData.getPostsByMinDate(req.query.minDate);
+    } else {
+        queryPromise = blogData.getAllPosts()
+    }
+
+    queryPromise.then(data => {
+        if(data.length > 0) {
+            res.render('posts',{ posts: data });
+            
+        } else {
+            res.render("posts", {message: "no results"});
+        }
+    }).catch(err => {
+        res.render("posts", {message: "no results"});
+    })
+
+});
+
+
+app.get("/posts/add", (req, res) => {
+    blogData.getCategories().then((data) => {
+        res.render("addPost",{categories: data});
+    }).catch((err) => {
+        res.render("addPost", {categories: []});
+    });
+});
+
+app.post('/posts/add', (req, res) => {
+    blogData.addPost(req.body).then((data) => {
+       res.redirect("/posts");
+    }).catch((err) => {
+        console.log(err);
+    });
+});
+
+app.get('/post/:id', (req,res)=>{
+    blogData.getPostById(req.params.id).then(data=>{
+        res.json(data);
+    }).catch(err=>{
+        res.json({message: err});
+    });
 });
 
 app.get('/blog/:id', async (req, res) => {
@@ -147,10 +193,10 @@ app.get('/blog/:id', async (req, res) => {
         // if there's a "category" query, filter the returned posts by category
         if(req.query.category){
             // Obtain the published "posts" by category
-            posts = await service.getPublishedPostsByCategory(req.query.category);
+            posts = await blogData.getPublishedPostsByCategory(req.query.category);
         }else{
             // Obtain the published "posts"
-            posts = await service.getPublishedPosts();
+            posts = await blogData.getPublishedPosts();
         }
 
         // sort the published posts by postDate
@@ -165,14 +211,14 @@ app.get('/blog/:id', async (req, res) => {
 
     try{
         // Obtain the post by "id"
-        viewData.post = await service.getPostById(req.params.id);
+        viewData.post = await blogData.getPostById(req.params.id);
     }catch(err){
         viewData.message = "no results"; 
     }
 
     try{
         // Obtain the full list of "categories"
-        let categories = await service.getCategories();
+        let categories = await blogData.getCategories();
 
         // store the "categories" data in the viewData object (to be passed to the view)
         viewData.categories = categories;
@@ -184,83 +230,55 @@ app.get('/blog/:id', async (req, res) => {
     res.render("blog", {data: viewData})
 });
 
-app.get('/post/:value', (req, res) => {
-    service.getPostById(req.params.value).then(data => res.send(data)).catch(err => res.json(`message: ${err}`));
-})
-
-app.get('/posts', (req, res) => {
-    if (req.query.category) {
-        service.getPostsByCategory(req.query.category).then(data => res.render("posts", {posts: data})).catch(err => res.render("posts", {message: "no results"}));
-    } else if (req.query.minDate) {
-        service.getPostsByMinDate(req.query.minDate).then(data => res.render("posts", {posts: data})).catch(err => res.render("posts", {message: "no results"}));
-    } else {
-        service.getAllPosts().then(data => res.render("posts", {posts: data})).catch(err => res.render("posts", {message: "no results"}));
-    }
-})
-
-
-
 app.get('/categories', (req, res) => {
-    service.getCategories().then(data => res.render('categories', {categories: data})).catch(err => res.render("categories", {message: "no results"}));
-
-})
-
-app.get('/posts/add', (req, res) => {
-    res.render('addPost')
-})
-
-app.listen(port, () => {
-    console.log(`Listening on http://localhost:${port}`);
-    service.initialize().then((data) => console.log(data)).catch((err) => console.log(err));
-})
-
-
-
-// Adding POST routes
-app.post('/posts/add', upload.single("featureImage"), (req, res) => {
-    if(req.file){
-        let streamUpload = (req) => {
-            return new Promise((resolve, reject) => {
-                let stream = cloudinary.uploader.upload_stream(
-                    (error, result) => {
-                        if (result) {
-                            resolve(result);
-                        } else {
-                            reject(error);
-                        }
-                    }
-                );
-    
-                streamifier.createReadStream(req.file.buffer).pipe(stream);
-            });
-        };
-    
-        async function upload(req) {
-            let result = await streamUpload(req);
-            console.log(result);
-            return result;
+    blogData.getCategories().then((data => {
+        if(data.length > 0) {
+            res.render('categories',{ categories: data });
+        } else {
+            res.render("categories", {message: "no results"});
         }
-    
-        upload(req).then((uploaded)=>{
-            processPost(uploaded.url);
-        });
-    } else {
-        processPost("");
-    }
+    })).catch(err => {
+        res.render("categories", {message: "no results"});
+    });
+});
 
-    function processPost(imageUrl){
-        req.body.featureImage = imageUrl;
+app.get('/categories/add',function(req,res) {
+    res.render('addCategory');
+});
 
-        const postData = {
-            "body": req.body.body,
-            "title": req.body.title,
-            "postDate": new Date().toISOString().split('T')[0],
-            "category": req.body.category,
-            "featureImage": imageUrl,
-            "published": req.body.published,
-        }
+app.post('/categories/add', (req, res) =>  {
 
-        service.addPost(postData).then(data => res.redirect('/posts')).catch(err => res.json(`message: ${err}`));
-    }
+    blogData.addCategory(req.body).then((data) => {
+        res.redirect("/categories");
+    }).catch(err=>{
+        res.status(500).send(err);
+    })
+});
 
+app.get('/categories/delete/:id', function(req,res) {
+    blogData.deleteCategoryById(req.params.id).then(() => {
+        res.redirect("/categories");
+    }).catch(() => {
+        res.status(500).send("Unable to Remove Category / Category not found");
+    });
+});
+
+app.get('/posts/delete/:id', function(req,res) {
+    blogData.deletePostById(req.params.id).then(() => {
+        res.redirect("/posts");
+    }).catch(() => {
+        res.status(500).send("Unable to Remove Post / Post not found");
+    });
+});
+
+app.use((req, res) => {
+    res.status(404).render("404");
+})
+
+blogData.initialize().then(() => {
+    app.listen(HTTP_PORT, () => {
+        console.log('server listening on: ' + HTTP_PORT);
+    });
+}).catch((err) => {
+    console.log(err);
 })
