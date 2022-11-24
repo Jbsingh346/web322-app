@@ -9,9 +9,7 @@ var sequelize = new Sequelize('vpkngfgc', 'vpkngfgc', 'uzCONdGcq4XTdd6rt5rpJGHrG
     query: { raw: true }
 });
 
-var Category = sequelize.define('Category', {
-    category: Sequelize.STRING
-});
+
 
 var Post = sequelize.define('Post', {
     body: Sequelize.TEXT,
@@ -21,6 +19,13 @@ var Post = sequelize.define('Post', {
     published: Sequelize.BOOLEAN,
     category: Sequelize.STRING
 });
+
+var Category = sequelize.define('Category', {
+    category: Sequelize.STRING
+});
+
+
+
 Post.belongsTo(Category, {foreignKey: 'category'});
 
 
@@ -114,6 +119,7 @@ module.exports.addPost = function(postData){
         });
     });
 }
+
 
 module.exports.getPublishedPosts = function(){
     return new Promise((resolve,reject)=>{
