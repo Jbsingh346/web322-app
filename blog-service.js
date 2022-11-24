@@ -1,6 +1,6 @@
 const Sequelize = require('sequelize');
-var sequelize = new Sequelize('vpkngfgc', 'vpkngfgc', 'uzCONdGcq4XTdd6rt5rpJGHrGJwHBNmS', {
-    host: 'heffalump.db.elephantsql.com',
+var sequelize = new Sequelize('zqmmlkja', 'zqmmlkja', 'lX0Lpx9qaC258E_MtFDd22XgfHhZMlUH', {
+    host: 'peanut.db.elephantsql.com',
     dialect: 'postgres',
     port: 5432,
     dialectOptions: {
@@ -11,6 +11,11 @@ var sequelize = new Sequelize('vpkngfgc', 'vpkngfgc', 'uzCONdGcq4XTdd6rt5rpJGHrG
 
 
 
+var Category = sequelize.define('Category', {
+    category: Sequelize.STRING
+});
+
+
 var Post = sequelize.define('Post', {
     body: Sequelize.TEXT,
     title: Sequelize.STRING,
@@ -19,13 +24,6 @@ var Post = sequelize.define('Post', {
     published: Sequelize.BOOLEAN,
     category: Sequelize.STRING
 });
-
-var Category = sequelize.define('Category', {
-    category: Sequelize.STRING
-});
-
-
-
 Post.belongsTo(Category, {foreignKey: 'category'});
 
 
